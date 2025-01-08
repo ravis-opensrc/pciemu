@@ -30,6 +30,7 @@ cd qemu
 ./configure \
 	--disable-bsd-user --disable-guest-agent --disable-gtk --disable-werror \
 	--enable-curses --enable-slirp --enable-libssh --enable-vde --enable-virtfs \
+	--prefix=$REPOSITORY_DIR/__install_qemu_pciemu \
 	--target-list=x86_64-softmmu
 
 printf "\nSetup finished. You may now build QEMU (cd qemu && make)\n"
