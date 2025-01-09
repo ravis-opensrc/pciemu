@@ -121,7 +121,7 @@ static void pciemu_class_init(ObjectClass *klass, void *class_data)
 
     set_bit(DEVICE_CATEGORY_MISC, device_class->categories);
     device_class->desc = PCIEMU_DEVICE_DESC;
-    device_class->reset = pciemu_device_reset;
+    device_class_set_legacy_reset(device_class,pciemu_device_reset);
 }
 
 /* -----------------------------------------------------------------------------
