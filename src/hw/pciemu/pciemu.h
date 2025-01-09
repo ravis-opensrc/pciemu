@@ -10,6 +10,7 @@
 
 #include "qemu/osdep.h"
 #include "hw/pci/pci.h"
+#include "hw/pci/pci_device.h"
 #include "pciemu_hw.h"
 #include "dma.h"
 #include "irq.h"
