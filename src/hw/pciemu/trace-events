@@ -1,0 +1,4 @@
+# trace-events
+# mmio.c
+pciemu_mmio_read(uint32_t bus, uint32_t slot, uint32_t func, uint8_t bar, uint64_t address, unsigned size, uint64_t val) "%02x:%02x.%x bar %u @0x%" PRIx64 " size %u -> 0x%" PRIx64
+pciemu_mmio_write(uint32_t bus, uint32_t slot, uint32_t func, uint8_t bar, uint64_t address, unsigned size, uint64_t val) "%02x:%02x.%x bar %u @0x%" PRIx64 " size %u <- 0x%" PRIx64
