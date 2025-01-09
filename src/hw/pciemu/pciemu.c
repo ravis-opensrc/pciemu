@@ -56,6 +56,8 @@ static void pciemu_reset(PCIEMUDevice *dev)
 static void pciemu_device_init(PCIDevice *pci_dev, Error **errp)
 {
     PCIEMUDevice *dev = PCIEMU_DEVICE(pci_dev);
+    dev->num_regs = PCIEMU_BAR0_NUM_REGISTERS;
+    dev->bar2_size_mb = PCIEMU_BAR2_SIZE_IN_MB;
     pciemu_irq_init(dev, errp);
     pciemu_dma_init(dev, errp);
     pciemu_mmio_init(dev, errp);

@@ -36,7 +36,6 @@ typedef struct PCIEMUDeviceClass {
 
 typedef struct PCIEMUDevice {
     /*< private >*/
-    /* OOP hack : Our parent (PCIDevice) is part of the struct */
     PCIDevice pci_dev;
     /*< public >*/
 
@@ -47,10 +46,23 @@ typedef struct PCIEMUDevice {
     DMAEngine dma;
 
     /* Memory Regions */
-    MemoryRegion mmio; /* BAR 0 (registers) */
+    MemoryRegion bar0; /* BAR 0 (registers) */
+    MemoryRegion bar2; /* BAR 2 (memory) */
 
     /* Registers in BAR0 */
-    uint64_t reg[PCIEMU_HW_BAR0_REG_CNT];
+    uint32_t *bar0_regs;
+    /* Memory in BAR2 */
+    uint64_t *bar2_mem;
+
+    /* Number of registers in BAR0 */
+    uint32_t num_regs;
+    /* Size of BAR2 in MB */
+    uint32_t bar2_size_mb;
+
+    /* Start addresses of BARs */
+    hwaddr bar0_start;
+    hwaddr bar2_start;
+
 } PCIEMUDevice;
 
 #endif /* PCIEMU_H */
