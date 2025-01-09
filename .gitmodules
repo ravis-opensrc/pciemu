@@ -1,7 +1,7 @@
 [submodule "qemu"]
 	path = qemu
-	url = https://github.com/luizinhosuraty/qemu.git
-	branch = latest
+	url = https://gitlab.com/jic23/qemu.git
+	branch = cxl-2024-11-27
 [submodule "include/unitctest"]
 	path = include/unitctest
 	url = https://github.com/luizinhosuraty/unitctest.git
