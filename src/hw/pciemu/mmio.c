@@ -40,10 +40,8 @@ static inline bool pciemu_mmio_valid_access(PCIEMUDevice *dev, hwaddr addr, unsi
             return true;
         }
     } else if (addr >= dev->bar2_start && addr < dev->bar2_start + (dev->bar2_size_mb * MiB)) {
-        // Check alignment for BAR2 (uint64_t)
-        if (addr % sizeof(uint64_t) == 0 && size == sizeof(uint64_t)) {
-            return true;
-        }
+        // No alignment check for BAR2 (char*)
+        return true;
     }
     return false;
 }
@@ -73,8 +71,8 @@ static uint64_t pciemu_mmio_read(void *opaque, hwaddr addr, unsigned int size)
         val = (uint32_t)(dev->bar0_regs[(addr - dev->bar0_start) / sizeof(uint32_t)]);
 	bar = 0;
     } else if (addr >= dev->bar2_start && addr < dev->bar2_start + (dev->bar2_size_mb * MiB)) {
-        // Handle BAR2 (uint64_t)
-        val = dev->bar2_mem[(addr - dev->bar2_start) / sizeof(uint64_t)];
+	// Handle BAR2 (char*)
+        memcpy(&val, &dev->bar2_mem[addr - dev->bar2_start], size);
 	bar = 2;
     }
 
@@ -109,8 +107,8 @@ static void pciemu_mmio_write(void *opaque, hwaddr addr, uint64_t val,
         dev->bar0_regs[(addr - dev->bar0_start) / sizeof(uint32_t)] = (uint32_t)val;
 	bar = 0;
     } else if (addr >= dev->bar2_start && addr < dev->bar2_start + (dev->bar2_size_mb * MiB)) {
-        // Handle BAR2 (uint64_t)
-        dev->bar2_mem[(addr - dev->bar2_start) / sizeof(uint64_t)] = val;
+	// Handle BAR2 (char*)
+        memcpy(&dev->bar2_mem[addr - dev->bar2_start], &val, size);
 	bar = 2;
     }
     trace_pciemu_mmio_write(PCI_BUS_NUM(dev->pci_dev.devfn), PCI_SLOT(dev->pci_dev.devfn), PCI_FUNC(dev->pci_dev.devfn), bar, address, size, val);
@@ -175,7 +173,7 @@ void pciemu_mmio_init(PCIEMUDevice *dev, Error **errp)
     dev->bar2_start = pci_get_bar_addr(&dev->pci_dev, 2);
 
     dev->bar0_regs = g_new0(uint32_t, dev->num_regs);
-    dev->bar2_mem = g_new0(uint64_t, dev->bar2_size_mb * (MiB / sizeof(uint64_t)));
+    dev->bar2_mem = g_new0(char, dev->bar2_size_mb * MiB);
 }
 
 /**

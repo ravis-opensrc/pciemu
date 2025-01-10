@@ -52,7 +52,7 @@ typedef struct PCIEMUDevice {
     /* Registers in BAR0 */
     uint32_t *bar0_regs;
     /* Memory in BAR2 */
-    uint64_t *bar2_mem;
+    char *bar2_mem;
 
     /* Number of registers in BAR0 */
     uint32_t num_regs;
