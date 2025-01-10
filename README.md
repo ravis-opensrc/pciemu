@@ -50,6 +50,7 @@ properly compile the pciemu device along with all other QEMU files. Thus,
 once all preparation is finished, run the following:
 
 ```bash
+$ git submodule update --init --remote --merge
 $ ./setup.sh
 ```
 
