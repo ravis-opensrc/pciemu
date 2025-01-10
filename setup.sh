@@ -27,6 +27,7 @@ ln -s $REPOSITORY_DIR/include/hw/pciemu_hw.h $REPOSITORY_DIR/src/hw/$REPOSITORY_
 
 # Configure QEMU
 cd qemu
+git am ../0001-Added-hw-misc-pciemu-directory-for-tracing.patch
 ./configure \
 	--disable-bsd-user --disable-guest-agent --disable-gtk --disable-werror \
 	--enable-curses --enable-slirp --enable-libssh --enable-vde --enable-virtfs \

@@ -1,0 +1,25 @@
+From c965f6ef9d2c43c338de4d32f6298c96931f0a6a Mon Sep 17 00:00:00 2001
+From: Ravi Shankar <ravis.opensrc@micron.com>
+Date: Thu, 9 Jan 2025 16:02:42 -0800
+Subject: [PATCH] Added hw/misc/pciemu directory for tracing
+
+Signed-off-by: Ravi Shankar <ravis.opensrc@micron.com>
+---
+ meson.build | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/meson.build b/meson.build
+index e0b880e4e1..e00cc9c0a7 100644
+--- a/meson.build
++++ b/meson.build
+@@ -3564,6 +3564,7 @@ if have_system
+     'hw/mips',
+     'hw/misc',
+     'hw/misc/macio',
++    'hw/misc/pciemu',
+     'hw/net',
+     'hw/net/can',
+     'hw/nubus',
+-- 
+2.43.0
+
