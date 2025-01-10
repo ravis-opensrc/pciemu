@@ -35,4 +35,4 @@ git am ../qemu-patches/0001-Added-hw-misc-pciemu-directory-for-tracing.patch
 	--prefix=$REPOSITORY_DIR/__install_qemu_pciemu \
 	--target-list=x86_64-softmmu
 
-printf "\nSetup finished. You may now build QEMU (cd qemu && make)\n"
+printf "\nSetup finished. You may now build QEMU (cd qemu/build && make)\n"
