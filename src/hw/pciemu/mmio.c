@@ -24,93 +24,122 @@
  */
 
 /**
- * pciemu_mmio_valid_access: Check whether the access is valid
+ * pciemu_bar0_valid_access: Check whether the access is valid for BAR0
  *
- * The size verification here is not required.
- * (memory_region_access_valid function in QEMU core will filter those out)
- *
- * @addr: address being accessed (relative to the Memory Region)
- * @size: read size in bytes (4 or 8)
+ * @dev: Pointer to PCIEMUDevice private structure
+ * @addr: address being accessed (relative to the BAR0)
+ * @size: read size in bytes (4)
  */
-static inline bool pciemu_mmio_valid_access(PCIEMUDevice *dev, hwaddr addr, unsigned int size)
+static bool pciemu_bar0_valid_access(PCIEMUDevice *dev, hwaddr addr, unsigned int size)
 {
-    if (addr >= dev->bar0_start && addr < dev->bar0_start + (dev->num_regs * sizeof(uint32_t))) {
-        // Check alignment for BAR0 (uint32_t)
-        if (addr % sizeof(uint32_t) == 0 && size == sizeof(uint32_t)) {
-            return true;
-        }
-    } else if (addr >= dev->bar2_start && addr < dev->bar2_start + (dev->bar2_size_mb * MiB)) {
-        // No alignment check for BAR2 (char*)
+    if (addr < (dev->num_regs * sizeof(uint32_t)) && addr % sizeof(uint32_t) == 0 && size == sizeof(uint32_t)) {
         return true;
     }
     return false;
 }
 
 /**
- * pciemu_mmio_read: Callback for read operations
+ * pciemu_bar2_valid_access: Check whether the access is valid for BAR2
  *
- * Read from the memory region and return the correspondent value.
- * Only valid for regions with READ operations (mostly regiters)
+ * @dev: Pointer to PCIEMUDevice private structure
+ * @addr: address being accessed (relative to the BAR2)
+ * @size: read size in bytes (1, 2, 4, or 8)
+ */
+static bool pciemu_bar2_valid_access(PCIEMUDevice *dev, hwaddr addr, unsigned int size)
+{
+    if (addr < (dev->bar2_size_mb * MiB)) {
+        return true;
+    }
+    return false;
+}
+
+/**
+ * pciemu_bar0_read: Callback for read operations on BAR0
  *
  * @opaque: opaque pointer that points to instantiated object
- * @addr: address being accessed (relative to the Memory Region)
- * @size: read size in bytes (4 or 8)
+ * @addr: address being accessed (relative to the BAR0)
+ * @size: read size in bytes (4)
  */
-static uint64_t pciemu_mmio_read(void *opaque, hwaddr addr, unsigned int size)
+static uint64_t pciemu_bar0_read(void *opaque, hwaddr addr, unsigned int size)
 {
     PCIEMUDevice *dev = opaque;
     uint64_t val = ~0ULL;
-    uint8_t bar=0;
+    uint8_t bar = 0;
     uint64_t address = (uint64_t)addr;
 
-    if (!pciemu_mmio_valid_access(dev, addr, size))
+    if (!pciemu_bar0_valid_access(dev, addr, size))
         return val;
 
-    if (addr >= dev->bar0_start && addr < dev->bar0_start + (dev->num_regs * sizeof(uint32_t))) {
-        // Handle BAR0 (uint32_t)
-        val = (uint32_t)(dev->bar0_regs[(addr - dev->bar0_start) / sizeof(uint32_t)]);
-	bar = 0;
-    } else if (addr >= dev->bar2_start && addr < dev->bar2_start + (dev->bar2_size_mb * MiB)) {
-	// Handle BAR2 (char*)
-        memcpy(&val, &dev->bar2_mem[addr - dev->bar2_start], size);
-	bar = 2;
-    }
+    val = (uint32_t)(dev->bar0_regs[addr / sizeof(uint32_t)]);
 
     trace_pciemu_mmio_read(PCI_BUS_NUM(dev->pci_dev.devfn), PCI_SLOT(dev->pci_dev.devfn), PCI_FUNC(dev->pci_dev.devfn), bar, address, size, val);
-
     return val;
 }
 
 /**
- * pciemu_mmio_write: Callback for write operations
- *
- * Write to the memory region.
- * For now, it writes to reg0 regardless of the address.
+ * pciemu_bar0_write: Callback for write operations on BAR0
  *
  * @opaque: opaque pointer that points to instantiated object
- * @addr: address being written (relative to the Memory Region)
+ * @addr: address being written (relative to the BAR0)
  * @val: value to be written
- * @size: write size in bytes (4 or 8)
+ * @size: write size in bytes (1, 2, 4, or 8)
  */
-static void pciemu_mmio_write(void *opaque, hwaddr addr, uint64_t val,
-                              unsigned size)
+static void pciemu_bar0_write(void *opaque, hwaddr addr, uint64_t val, unsigned size)
 {
     PCIEMUDevice *dev = opaque;
-    uint8_t bar=0;
+    uint8_t bar = 0;
     uint64_t address = (uint64_t)addr;
 
-    if (!pciemu_mmio_valid_access(dev, addr, size))
+    if (!pciemu_bar0_valid_access(dev, addr, size))
         return;
 
-    if (addr >= dev->bar0_start && addr < dev->bar0_start + (dev->num_regs * sizeof(uint32_t))) {
-        // Handle BAR0 (uint32_t)
-        dev->bar0_regs[(addr - dev->bar0_start) / sizeof(uint32_t)] = (uint32_t)val;
-	bar = 0;
-    } else if (addr >= dev->bar2_start && addr < dev->bar2_start + (dev->bar2_size_mb * MiB)) {
-	// Handle BAR2 (char*)
-        memcpy(&dev->bar2_mem[addr - dev->bar2_start], &val, size);
-	bar = 2;
-    }
+    dev->bar0_regs[addr / sizeof(uint32_t)] = (uint32_t)val;
+
+    trace_pciemu_mmio_write(PCI_BUS_NUM(dev->pci_dev.devfn), PCI_SLOT(dev->pci_dev.devfn), PCI_FUNC(dev->pci_dev.devfn), bar, address, size, val);
+}
+
+/**
+ * pciemu_bar2_read: Callback for read operations on BAR2
+ *
+ * @opaque: opaque pointer that points to instantiated object
+ * @addr: address being accessed (relative to the BAR2)
+ * @size: read size in bytes (1, 2, 4, or 8)
+ */
+static uint64_t pciemu_bar2_read(void *opaque, hwaddr addr, unsigned int size)
+{
+    PCIEMUDevice *dev = opaque;
+    uint64_t val = ~0ULL;
+    uint8_t bar = 2;
+    uint64_t address = (uint64_t)addr;
+
+    if (!pciemu_bar2_valid_access(dev, addr, size))
+        return val;
+
+    memcpy(&val, &dev->bar2_mem[addr], size);
+
+    trace_pciemu_mmio_read(PCI_BUS_NUM(dev->pci_dev.devfn), PCI_SLOT(dev->pci_dev.devfn), PCI_FUNC(dev->pci_dev.devfn), bar, address, size, val);
+    return val;
+}
+
+/**
+ * pciemu_bar2_write: Callback for write operations on BAR2
+ *
+ * @opaque: opaque pointer that points to instantiated object
+ * @addr: address being written (relative to the BAR2)
+ * @val: value to be written
+ * @size: write size in bytes (1, 2, 4, or 8)
+ */
+static void pciemu_bar2_write(void *opaque, hwaddr addr, uint64_t val, unsigned size)
+{
+    PCIEMUDevice *dev = opaque;
+    uint8_t bar = 2;
+    uint64_t address = (uint64_t)addr;
+
+    if (!pciemu_bar2_valid_access(dev, addr, size))
+        return;
+
+    memcpy(&dev->bar2_mem[addr], &val, size);
+
     trace_pciemu_mmio_write(PCI_BUS_NUM(dev->pci_dev.devfn), PCI_SLOT(dev->pci_dev.devfn), PCI_FUNC(dev->pci_dev.devfn), bar, address, size, val);
 }
 
@@ -140,6 +169,48 @@ void pciemu_mmio_reset(PCIEMUDevice *dev)
     (((bar_size) + (target_page_size) - 1) / (target_page_size)) * (target_page_size))
 
 /**
+ * pciemu_bar0_ops: Memory region description for BAR0
+ *
+ * Describes the operations and behavior (with callbacks)
+ * of the device memory region dedicated for BAR0.
+ *
+ */
+const MemoryRegionOps pciemu_bar0_ops = {
+    .read = pciemu_bar0_read,
+    .write = pciemu_bar0_write,
+    .endianness = DEVICE_NATIVE_ENDIAN,
+    .valid = {
+        .min_access_size = 4,
+        .max_access_size = 4,
+    },
+    .impl = {
+        .min_access_size = 4,
+        .max_access_size = 4,
+    },
+};
+
+/**
+ * pciemu_bar2_ops: Memory region description for BAR2
+ *
+ * Describes the operations and behavior (with callbacks)
+ * of the device memory region dedicated for BAR2.
+ *
+ */
+const MemoryRegionOps pciemu_bar2_ops = {
+    .read = pciemu_bar2_read,
+    .write = pciemu_bar2_write,
+    .endianness = DEVICE_NATIVE_ENDIAN,
+    .valid = {
+        .min_access_size = 1,
+        .max_access_size = 8,
+    },
+    .impl = {
+        .min_access_size = 1,
+        .max_access_size = 8,
+    },
+};
+
+/**
  * pciemu_mmio_init: MMIO initialization
  *
  * Initializes the MMIO block for the instantiated PCIEMUDevice object.
@@ -160,7 +231,7 @@ void pciemu_mmio_init(PCIEMUDevice *dev, Error **errp)
     bar0_size = BAR_SIZE(bar0_req_size, target_page_size);
 
     /* Initialize BAR 0 for register access */
-    memory_region_init_io(&dev->bar0, OBJECT(dev), &pciemu_mmio_ops, dev, "pciemu-mmio-bar0", bar0_size);
+    memory_region_init_io(&dev->bar0, OBJECT(dev), &pciemu_bar0_ops, dev, "pciemu-mmio-bar0", bar0_size);
     pci_register_bar(&dev->pci_dev, 0, PCI_BASE_ADDRESS_SPACE_MEMORY, &dev->bar0);
     dev->bar0_start = pci_get_bar_addr(&dev->pci_dev, 0);
 
@@ -168,7 +239,7 @@ void pciemu_mmio_init(PCIEMUDevice *dev, Error **errp)
     bar2_size = BAR_SIZE(bar2_req_size, target_page_size);
 
     /* Initialize BAR 2 for memory access */
-    memory_region_init_io(&dev->bar2, OBJECT(dev), &pciemu_mmio_ops, dev, "pciemu-mmio-bar2", bar2_size);
+    memory_region_init_io(&dev->bar2, OBJECT(dev), &pciemu_bar2_ops, dev, "pciemu-mmio-bar2", bar2_size);
     pci_register_bar(&dev->pci_dev, 2, PCI_BASE_ADDRESS_SPACE_MEMORY, &dev->bar2);
     dev->bar2_start = pci_get_bar_addr(&dev->pci_dev, 2);
 
@@ -189,24 +260,3 @@ void pciemu_mmio_fini(PCIEMUDevice *dev)
 {
     pciemu_mmio_reset(dev);
 }
-
-/**
- * pciemu_mmio_ops: Memory region description
- *
- * Describes the operations and behavior (with callbacks)
- * of the device memory region dedicate for MMIO.
- *
- */
-const MemoryRegionOps pciemu_mmio_ops = {
-    .read = pciemu_mmio_read,
-    .write = pciemu_mmio_write,
-    .endianness = DEVICE_NATIVE_ENDIAN,
-    .valid = {
-	.min_access_size = 4,
-	.max_access_size = 8,
-    },
-    .impl = {
-        .min_access_size = 4,
-        .max_access_size = 8,
-    },
-};
