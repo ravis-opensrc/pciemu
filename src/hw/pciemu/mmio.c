@@ -82,7 +82,7 @@ static uint64_t pciemu_bar0_read(void *opaque, hwaddr addr, unsigned int size)
  * @opaque: opaque pointer that points to instantiated object
  * @addr: address being written (relative to the BAR0)
  * @val: value to be written
- * @size: write size in bytes (1, 2, 4, or 8)
+ * @size: write size in bytes (4)
  */
 static void pciemu_bar0_write(void *opaque, hwaddr addr, uint64_t val, unsigned size)
 {
