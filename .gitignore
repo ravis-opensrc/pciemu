@@ -17,3 +17,9 @@
 
 # build folders
 build/
+
+#header softlink
+src/hw/pciemu/pciemu_hw.h
+
+#installation folder
+__install_qemu_pciemu/
