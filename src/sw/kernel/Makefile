@@ -5,9 +5,8 @@
 # SPDX-License-Identifier: GPL-2.0
 #
 
-obj-m += pciemu.o
-pciemu-objs += pciemu_module.o pciemu_dma.o pciemu_irq.o
-ccflags-y=-I/hostdir/include
+obj-m += pcie-bar-hmem.o
+pcie-bar-hmem-objs += pci-hmem.o
 
 all:
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
