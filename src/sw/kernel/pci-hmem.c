@@ -100,6 +100,10 @@ static int pci_hmem_probe(struct pci_dev *pdev,
 	platform_dev->dev.numa_node = numa_map_to_online_node(target_id);
 	info = (struct memregion_info) {
 		.target_node = target_id,
+		.range = {
+                        .start = res.start,
+                        .end = res.end,
+                },
 	};
 
 	platform_dev->dev.parent = dev;
