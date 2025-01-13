@@ -20,19 +20,25 @@ typedef struct {
 } TransactionList;
 
 typedef struct NetworkInitiator_t {
-    int fd;
+    int read_fd;
+    int write_fd;
     int is_connected;
     int should_exit;
-    pthread_t dispatch_thread;
-    TransactionList transaction_list;
+    pthread_t read_thread;
+    pthread_t write_thread;
+    TransactionList read_list;
+    TransactionList write_list;
 } NetworkInitiator;
 
 NetworkInitiator* network_initiator_new(void);
 void network_initiator_free(NetworkInitiator* initiator);
 int network_initiator_initialize(NetworkInitiator* initiator, const char* ip, int port);
 int network_initiator_send_transaction(NetworkInitiator* initiator, TransactionNode* node);
+int network_initiator_send_read_transaction(NetworkInitiator* initiator, TransactionNode* node);
+int network_initiator_send_write_transaction(NetworkInitiator* initiator, TransactionNode* node);
 void network_initiator_finish(NetworkInitiator* initiator);
 
-void *dispatch_thread_func(void *arg);
+void *read_thread_func(void *arg);
+void *write_thread_func(void *arg);
 
 #endif
