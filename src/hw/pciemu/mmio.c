@@ -17,6 +17,8 @@
 #include "irq.h"
 #include "pciemu_hw.h"
 #include "trace.h"
+#include "network_initiator.h"
+#include "transaction.h"
 
 /* -----------------------------------------------------------------------------
  *  Private
@@ -70,7 +72,25 @@ static uint64_t pciemu_bar0_read(void *opaque, hwaddr addr, unsigned int size)
     if (!pciemu_bar0_valid_access(dev, addr, size))
         return val;
 
+#ifdef NETWORK_TLM 
+    TransactionHeader trans = { .type = READ, .address = addr / sizeof(uint32_t) };
+    TransactionNode node;
+    node.header = trans;
+    node.completed = 0;
+    pthread_cond_init(&node.cond, NULL);
+    pthread_mutex_init(&node.mutex, NULL);
+
+    network_initiator_send_transaction(dev->initiator, &node);
+
+    pthread_mutex_lock(&node.mutex);
+    while (!node.completed) {
+        pthread_cond_wait(&node.cond, &node.mutex);
+    }
+    pthread_mutex_unlock(&node.mutex);
+    val = (uint32_t)(node.header.data);
+#else
     val = (uint32_t)(dev->bar0_regs[addr / sizeof(uint32_t)]);
+#endif
 
     trace_pciemu_mmio_read(PCI_BUS_NUM(dev->pci_dev.devfn), PCI_SLOT(dev->pci_dev.devfn), PCI_FUNC(dev->pci_dev.devfn), bar, address, size, val);
     return val;
@@ -93,7 +113,25 @@ static void pciemu_bar0_write(void *opaque, hwaddr addr, uint64_t val, unsigned 
     if (!pciemu_bar0_valid_access(dev, addr, size))
         return;
 
+#ifdef NETWORK_TLM
+    TransactionHeader trans = { .type = WRITE, .address = addr / sizeof(uint32_t), .data = val };
+
+    TransactionNode node;
+    node.header = trans;
+    node.completed = 0;
+    pthread_cond_init(&node.cond, NULL);
+    pthread_mutex_init(&node.mutex, NULL);
+
+    network_initiator_send_transaction(dev->initiator, &node);
+
+    pthread_mutex_lock(&node.mutex);
+    while (!node.completed) {
+        pthread_cond_wait(&node.cond, &node.mutex);
+    }
+    pthread_mutex_unlock(&node.mutex);
+#else
     dev->bar0_regs[addr / sizeof(uint32_t)] = (uint32_t)val;
+#endif
 
     trace_pciemu_mmio_write(PCI_BUS_NUM(dev->pci_dev.devfn), PCI_SLOT(dev->pci_dev.devfn), PCI_FUNC(dev->pci_dev.devfn), bar, address, size, val);
 }
@@ -226,9 +264,15 @@ void pciemu_mmio_init(PCIEMUDevice *dev, Error **errp)
     uint64_t bar2_req_size, bar2_size;
     int target_page_size;
 
+#ifdef NETWORK_TLM 
+    dev->initiator =  network_initiator_new(); 
+    network_initiator_initialize(dev->initiator, "127.0.0.1", SERVER_PORT);
+#endif
+
     bar0_req_size = dev->num_regs * sizeof(uint32_t);
     target_page_size = qemu_target_page_size();
     bar0_size = BAR_SIZE(bar0_req_size, target_page_size);
+
 
     /* Initialize BAR 0 for register access */
     memory_region_init_io(&dev->bar0, OBJECT(dev), &pciemu_bar0_ops, dev, "pciemu-mmio-bar0", bar0_size);

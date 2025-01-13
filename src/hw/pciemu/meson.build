@@ -2,6 +2,7 @@ pciemu_ss = ss.source_set()
 pciemu_ss.add(files(
     'dma.c',
     'irq.c',
+    'network_initiator.c',
     'mmio.c',
     'pciemu.c',
 ))
