@@ -25,6 +25,8 @@
 #define PCIEMU_BAR0_NUM_REGISTERS 8
 #define PCIEMU_BAR2_SIZE_IN_MB    32
 
+#define PCIE_MMIO_DAX_BAR_NUM 2
+
 /* BAR */
 #define PCIEMU_HW_BAR0 0
 #define PCIEMU_HW_BAR_CNT 1
