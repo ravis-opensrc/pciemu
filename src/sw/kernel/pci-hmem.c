@@ -20,12 +20,23 @@
 
 struct pci_hmem_prv {
 	struct platform_device *platform_dev;
-	int mem_id;
+	long mem_id;
 };
 
 static int pci_hmem_probe(struct pci_dev *pdev,
 		          const struct pci_device_id *id);
 static void pci_hmem_remove(struct pci_dev *pdev);
+
+static void release_memregion(void *data);
+static void release_hmem(void *data);
+
+static void release_memregion(void *data) {
+	memregion_free((long)(data));
+}
+
+static void release_hmem(void *pdev) {
+	platform_device_unregister(pdev);
+}
 
 static int pci_hmem_probe(struct pci_dev *pdev,
 		          const struct pci_device_id *id) {
@@ -91,10 +102,12 @@ static int pci_hmem_probe(struct pci_dev *pdev,
 		return -ENOMEM;
 	}
 
+        rc = devm_add_action_or_reset(dev, release_memregion, (void *)(pci_drv_data->mem_id));
+
 	platform_dev = platform_device_alloc("hmem", pci_drv_data->mem_id);
 	if (!platform_dev) {
 		dev_err(dev, "hmem device allocation failure for %pr\n", &res);
-		goto out_pdev;
+		return -ENOMEM;
 	}
 
 	platform_dev->dev.numa_node = numa_map_to_online_node(target_id);
@@ -111,19 +124,19 @@ static int pci_hmem_probe(struct pci_dev *pdev,
 	rc = platform_device_add_data(platform_dev, &info, sizeof(info));
 	if (rc < 0) {
 		dev_err(dev, "hmem memregion_info allocation failure for %pr\n", &res);
-		goto out_pdev;
+		goto out_put;
 	}
 
 	rc = platform_device_add_resources(platform_dev, &res, 1);
 	if (rc < 0) {
 		dev_err(dev, "hmem resource allocation failure for %pr\n", &res);
-		goto out_resource;
+		goto out_put;
 	}
 
 	rc = platform_device_add(platform_dev);
 	if (rc < 0) {
 		dev_err(dev, "device add failed for %pr\n", &res);
-		goto out_resource;
+		goto out_put;
 	}
 
 	pci_drv_data->platform_dev = platform_dev;
@@ -131,27 +144,15 @@ static int pci_hmem_probe(struct pci_dev *pdev,
 	pci_set_drvdata(pdev, pci_drv_data);
 	dev_err(dev, "pci-hmem probe completed successfully");
 
-	return 0;
+	return devm_add_action_or_reset(dev, release_hmem, platform_dev);
 
-out_resource:
+out_put:
 	platform_device_put(platform_dev);
-	pci_disable_device(pdev);
-
-out_pdev:
-	memregion_free(pci_drv_data->mem_id);
 
 	return -1;
 }
 
 static void pci_hmem_remove(struct pci_dev *pdev) {
-	struct pci_hmem_prv *private_data;
-
-	private_data = (struct pci_hmem_prv *) pci_get_drvdata(pdev);
-
-	if(private_data) {
-		memregion_free(private_data->mem_id);
-		platform_device_unregister(private_data->platform_dev);
-	}
 	dev_err(&pdev->dev, "Return from %s",__func__);
 }
 
