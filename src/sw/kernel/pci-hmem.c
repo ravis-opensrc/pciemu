@@ -11,22 +11,25 @@
 #include <linux/platform_device.h>
 #include <linux/ioport.h>
 #include <linux/delay.h>
+#include <linux/cdev.h>
+#include <linux/miscdevice.h>
 
 #include "../../../include/hw/pciemu_hw.h"
+#include "../../../include/sw/module/pciemu_ioctl.h"
 
 #define DRV_MODULE_NAME "pci-hmem"
-
-#define MIN_DEV_DAX_SIZE 0x200000 //2MB is min page size for devdax 
 
 struct pci_hmem_prv {
 	struct platform_device *platform_dev;
 	long mem_id;
+	resource_size_t bar0_size;
+	resource_size_t bar0_start;
+        struct miscdevice miscdev;
 };
 
 static int pci_hmem_probe(struct pci_dev *pdev,
 		          const struct pci_device_id *id);
 static void pci_hmem_remove(struct pci_dev *pdev);
-
 static void release_memregion(void *data);
 static void release_hmem(void *data);
 
@@ -36,6 +39,61 @@ static void release_memregion(void *data) {
 
 static void release_hmem(void *pdev) {
 	platform_device_unregister(pdev);
+}
+
+static int pci_hmem_open(struct inode *inode, struct file *file);
+static int pci_hmem_release(struct inode *inode, struct file *file);
+static long pci_hmem_ioctl(struct file *file, unsigned int cmd, unsigned long arg);
+static int pci_hmem_mmap(struct file *file, struct vm_area_struct *vma);
+
+static const struct file_operations pci_hmem_fops = {
+    .owner = THIS_MODULE,
+    .open = pci_hmem_open,
+    .release = pci_hmem_release,
+    .unlocked_ioctl = pci_hmem_ioctl,
+    .mmap = pci_hmem_mmap,
+};
+
+static int pci_hmem_open(struct inode *inode, struct file *file) {
+    struct pci_hmem_prv *pci_drv_data = container_of(file->private_data, struct pci_hmem_prv, miscdev);
+    file->private_data = pci_drv_data;
+    return 0;
+}
+
+static int pci_hmem_release(struct inode *inode, struct file *file) {
+    return 0;
+}
+
+static long pci_hmem_ioctl(struct file *file, unsigned int cmd, unsigned long arg) {
+    struct pci_hmem_prv *pci_drv_data = file->private_data;
+    size_t bar0_size;
+
+    switch (cmd) {
+        case PCIEMU_IOCTL_GET_BAR0_SIZE:
+            bar0_size = pci_drv_data->bar0_size;
+            if (copy_to_user((void __user *)arg, &bar0_size, sizeof(bar0_size)))
+                return -EFAULT;
+            break;
+        default:
+            return -EINVAL;
+    }
+
+    return 0;
+}
+
+static int pci_hmem_mmap(struct file *file, struct vm_area_struct *vma) {
+    struct pci_hmem_prv *pci_drv_data = file->private_data;
+    unsigned long pfn = (unsigned long)(pci_drv_data->bar0_start) >> PAGE_SHIFT;
+    unsigned long size = vma->vm_end - vma->vm_start;
+
+    if (size > pci_drv_data->bar0_size)
+        return -EINVAL;
+
+    //vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
+    if (remap_pfn_range(vma, vma->vm_start, pfn, size, vma->vm_page_prot))
+        return -EAGAIN;
+
+    return 0;
 }
 
 static int pci_hmem_probe(struct pci_dev *pdev,
@@ -69,15 +127,9 @@ static int pci_hmem_probe(struct pci_dev *pdev,
 	io_len = pci_resource_len(pdev, PCIE_MMIO_DAX_BAR_NUM);
 
 	res.start = io_start;
-
-	if (io_len < MIN_DEV_DAX_SIZE) {
-		dev_err(dev, "IO resource size for BAR %d is less than 2MB", PCIE_MMIO_DAX_BAR_NUM);
-		return -1;
-	}
-
 	res.end = io_end;
-
 	res.flags = IORESOURCE_MEM;
+
 	target_id = phys_to_target_node(res.start);
 
 	rc = region_intersects(res.start,
@@ -89,11 +141,14 @@ static int pci_hmem_probe(struct pci_dev *pdev,
 
 	//Create driver private data
 	pci_drv_data = (struct pci_hmem_prv *) devm_kzalloc(dev,
-			sizeof(struct pci_hmem_prv *), GFP_KERNEL);
+			sizeof(struct pci_hmem_prv), GFP_KERNEL);
 	if(!pci_drv_data) {
 		dev_err(dev, "driver prv data allocation failure");
 		return -ENOMEM;
 	}
+
+	pci_drv_data->bar0_size = pci_resource_len(pdev, PCIEMU_HW_BAR0);
+        pci_drv_data->bar0_start = pci_resource_start(pdev, PCIEMU_HW_BAR0);
 
 	//platform device create and add
 	pci_drv_data->mem_id = memregion_alloc(GFP_KERNEL);
@@ -142,6 +197,18 @@ static int pci_hmem_probe(struct pci_dev *pdev,
 	pci_drv_data->platform_dev = platform_dev;
 
 	pci_set_drvdata(pdev, pci_drv_data);
+
+        // Register the character device
+        pci_drv_data->miscdev.minor = MISC_DYNAMIC_MINOR;
+        pci_drv_data->miscdev.name = DRV_MODULE_NAME;
+        pci_drv_data->miscdev.fops = &pci_hmem_fops;
+
+        rc = misc_register(&pci_drv_data->miscdev);
+        if (rc) {
+            dev_err(dev, "Failed to register misc device");
+            goto out_put;
+        }
+
 	dev_err(dev, "pci-hmem probe completed successfully");
 
 	return devm_add_action_or_reset(dev, release_hmem, platform_dev);
@@ -153,6 +220,14 @@ out_put:
 }
 
 static void pci_hmem_remove(struct pci_dev *pdev) {
+	struct pci_hmem_prv *private_data;
+
+	private_data = (struct pci_hmem_prv *) pci_get_drvdata(pdev);
+
+ 	if(private_data) {
+		misc_deregister(&private_data->miscdev);
+ 	}
+
 	dev_err(&pdev->dev, "Return from %s",__func__);
 }
 
