@@ -30,7 +30,7 @@ cd qemu
 git am ../qemu-patches/0001-Added-hw-misc-pciemu-directory-for-tracing.patch
 ./configure \
 	--disable-bsd-user --disable-guest-agent --disable-gtk --disable-werror \
-	--enable-curses --enable-slirp --enable-libssh --enable-vde --enable-virtfs \
+	--enable-curses --enable-slirp --enable-libssh --enable-virtfs \
 	--enable-trace-backends=log,simple,ust \
 	--prefix=$REPOSITORY_DIR/__install_qemu_pciemu \
 	--target-list=x86_64-softmmu
